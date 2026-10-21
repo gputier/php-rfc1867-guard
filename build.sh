@@ -89,7 +89,7 @@ build_one() {
 	cp "$out/rfc1867_guard.so" "dist/rfc1867_guard-${minor}-nts-x86_64.so"
 	mkdir -p .build/rows
 	# shellcheck disable=SC1090,SC1091,SC2154
-	( ."$out/info"; printf '%s %s %s %s %s\n' "$minor" "$php_version" "$build_id" "$glibc_max" "$image" ) > ".build/rows/$minor"
+	( . "./$out/info"; printf '%s %s %s %s %s\n' "$minor" "$php_version" "$build_id" "$glibc_max" "$image" ) > ".build/rows/$minor"
 }
 
 minors=("$@")
