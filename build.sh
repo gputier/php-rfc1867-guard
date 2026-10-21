@@ -72,16 +72,24 @@ build_one() {
 	CURRENT="r1867-build-${minor}"
 
 	echo "== PHP $minor ($image)" >&2
-	tar cf - src build/in-container.sh \
-		| docker run --rm -i --platform "$PLATFORM" --name "$CURRENT" "$image" \
-			sh -c 'mkdir /work && tar xf - -C /work && sh /work/build/in-container.sh' \
-		| tar xf - -C "$out"
+	# Under qemu emulation (Apple silicon) cc1 segfaults at random: retry, a real error repeats.
+	local attempt
+	for attempt in 1 2 3; do
+		if tar cf - src build/in-container.sh \
+			| docker run --rm -i --platform "$PLATFORM" --name "$CURRENT" "$image" \
+				sh -c 'mkdir /work && tar xf - -C /work && sh /work/build/in-container.sh' \
+			| tar xf - -C "$out"; then
+			break
+		fi
+		[ "$attempt" -lt 3 ] || exit 1
+		echo "attempt $attempt failed, retrying" >&2
+	done
 	CURRENT=""
 
 	cp "$out/rfc1867_guard.so" "dist/rfc1867_guard-${minor}-nts-x86_64.so"
-	# shellcheck disable=SC1090,SC1091
 	mkdir -p .build/rows
-	( . "$out/info"; printf '%s %s %s %s %s\n' "$minor" "$php_version" "$build_id" "$glibc_max" "$image" ) > ".build/rows/$minor"
+	# shellcheck disable=SC1090,SC1091,SC2154
+	( ."$out/info"; printf '%s %s %s %s %s\n' "$minor" "$php_version" "$build_id" "$glibc_max" "$image" ) > ".build/rows/$minor"
 }
 
 minors=("$@")

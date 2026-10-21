@@ -10,7 +10,7 @@ RUN set -eux; \
 	tar xjf /usr/src/php-${PHP_VERSION}.tar.bz2 -C /opt/php-src --strip-components=1; \
 	cd /opt/php-src; \
 	./configure --prefix=/opt/php --disable-all --enable-cli --enable-session; \
-	(make -j"$(nproc)" || make); \
+	(make -j2 || make -j2 || make -j2 || make || make); \
 	make install; \
 	rm -rf /opt/php-src /usr/src/php-${PHP_VERSION}.tar.bz2
 ENV PATH=/opt/php/bin:${PATH}

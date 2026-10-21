@@ -154,6 +154,13 @@ $checks = array(
 if ($expect === 'guarded') {
     $checks['progress key absent'] = !$progressPresent;
     $checks['rfc1867_guard_status()[active]'] = isset($post['guard_active']) && $post['guard_active'] === '1';
+    $checks['status has the four documented keys'] = isset($post['status_keys'])
+        && $post['status_keys'] === 'active,detached_at_startup,foreign_hooks_cleared,version'
+        && $post['status_types'] === 'boolean,boolean,integer,string';
+    // The session hook is removed in MINIT (session starts first), the request-time check finds nothing.
+    $checks['status values: detached at startup, no foreign hook, version 1.0.1'] =
+        isset($post['status_detached_at_startup']) && $post['status_detached_at_startup'] === '1'
+        && $post['status_foreign_hooks_cleared'] === '0' && $post['status_version'] === '1.0.1';
 } else {
     $checks['progress key present'] = $progressPresent;
     $checks['guard absent'] = isset($post['guard_active']) && $post['guard_active'] === 'absent';

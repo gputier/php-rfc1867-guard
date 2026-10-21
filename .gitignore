@@ -1,4 +1,5 @@
 .work/
+dist/
 .build/
 *.o
 *.lo

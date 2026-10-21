@@ -20,13 +20,38 @@ If you run PHP 8.2 to 8.5, the official fix lands on 21 October 2026 at 14:00 UT
 
 The multipart decoder (`main/rfc1867.c`) calls its hook only through the global pointer `php_rfc1867_callback`. All seven call sites check that the pointer is not NULL. The session extension installs its handler there at startup.
 
-The guard declares an optional dependency on `session`, so it loads after session and clears the pointer at module init. It checks the pointer again on every request, at RINIT, in case something reinstalled a hook. No ini setting, `.user.ini`, `.htaccess` or user code can bring the handler back.
+The guard declares an optional dependency on `session`, so it loads after session and clears the pointer at module init (MINIT). That startup order is what protects the session handler. No ini setting, `.user.ini`, `.htaccess` or user code can bring the handler back.
+
+At the start of each request (RINIT) the guard clears the pointer again and counts it, in case another extension installed a hook after the guard started. That check runs after the multipart body of the current request has been parsed, so it does not cover the first request handled by a process against such a hook. It does not replace the MINIT order.
 
 Uploads, `$_FILES`, `$_POST` and sessions keep working. Only the server-side `session.upload_progress` feature stops. Browsers have reported upload progress natively for years.
 
 ## Install
 
-Tested so far on PHP 7.4 and 8.3, CLI and php-fpm: without the guard the upload-progress entry appears in the session, with the guard it does not, and the uploaded file arrives intact. The source targets PHP 5.4 to 8.5; the other versions are being built and tested now, and this line will list them.
+Built and tested on PHP 5.4, 5.5, 5.6, 7.0 to 7.4 and 8.0 to 8.5 (NTS, x86_64): without the guard the upload-progress entry appears in the session, with the guard it does not, the uploaded file arrives intact and the session keeps working. All 14 versions were tested with the CLI, and 7.4 and 8.3 also behind php-fpm with real FastCGI requests.
+
+### With the installer
+
+`install.sh` finds every PHP installation on the machine (distribution packages, Sury, Remi, cPanel EA4, alt-php, DirectAdmin, Plesk, and custom builds through `php-config`), checks that the binary matches each one, installs it, reloads the service and proves the guard is active in the running processes.
+
+Prebuilt binaries are attached to each [release](https://github.com/gputier/php-rfc1867-guard/releases), built by GitHub Actions with a provenance attestation. Put them in `dist/`, or let the installer compile with `phpize` (needs the PHP development package):
+
+```sh
+git clone https://github.com/gputier/php-rfc1867-guard.git
+cd php-rfc1867-guard
+mkdir -p dist && cd dist
+gh release download --repo gputier/php-rfc1867-guard   # or download the assets by hand
+cd ..
+sudo ./install.sh --dry-run   # show what would change
+sudo ./install.sh             # or: sudo ./install.sh --build
+sudo ./install.sh --check     # exit 0 when every installation is guarded
+```
+
+To check where a binary came from: `gh attestation verify dist/rfc1867_guard-8.3-nts-x86_64.so --repo gputier/php-rfc1867-guard`.
+
+`--uninstall` removes everything the installer added. `--only <php binary or prefix>` limits it to one installation.
+
+### By hand
 
 ```sh
 cd src
@@ -36,7 +61,7 @@ make
 make install
 ```
 
-The `--enable-rfc1867_guard` flag is required. Without it, `configure` leaves the extension out, and `make` builds nothing.
+`phpize` always builds the extension as a shared object, so the `.so` is produced even without `--enable-rfc1867_guard`. The flag stays in the commands for the usual `config.m4` convention.
 
 Then add `extension=rfc1867_guard.so` to the ini scan directory of every SAPI you run (fpm, apache2, cgi, cli), and restart. A reload is enough for php-fpm. mod_php needs a restart.
 
@@ -52,8 +77,6 @@ Where that ini file goes depends on the platform:
 | Plesk | `/opt/plesk/php/X.Y/etc/php.d/` |
 
 The official Docker images do not use `docker-php-ext-install` for this extension. Copy the source into your Dockerfile and run `phpize` there.
-
-Prebuilt binaries, a universal installer and CI builds with provenance attestations: coming soon.
 
 ## Verify
 
@@ -74,7 +97,14 @@ From a web request, run a script containing:
 var_dump(rfc1867_guard_status());
 ```
 
-The output must show `bool(true)` for `active`.
+The output must show `bool(true)` for `active`. The array has four keys, all read live:
+
+- `active` (bool): the multipart hook is NULL right now.
+- `detached_at_startup` (bool): the hook was set when the module started and the guard removed it. True when the session extension is loaded.
+- `foreign_hooks_cleared` (int): hooks found and cleared at the start of a request since the process started. It stays at 0 unless another extension installs a hook after the guard.
+- `version` (string): the guard version.
+
+`php --ri rfc1867_guard` and `phpinfo()` show the same values.
 
 To confirm that a running php-fpm master has the module mapped, check its memory maps:
 
