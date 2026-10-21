@@ -1,0 +1,16 @@
+# Minimal NTS PHP (cli + session) built from an official release tarball, installed under
+# /opt/php and put first in PATH, so that the build and test scripts treat the image like
+# php:<minor>-cli. Base: php:5.6-cli (Debian 9, gcc and make present).
+ARG BASE
+FROM ${BASE}
+ARG PHP_VERSION
+COPY php-${PHP_VERSION}.tar.bz2 /usr/src/
+RUN set -eux; \
+	mkdir /opt/php-src; \
+	tar xjf /usr/src/php-${PHP_VERSION}.tar.bz2 -C /opt/php-src --strip-components=1; \
+	cd /opt/php-src; \
+	./configure --prefix=/opt/php --disable-all --enable-cli --enable-session; \
+	(make -j"$(nproc)" || make); \
+	make install; \
+	rm -rf /opt/php-src /usr/src/php-${PHP_VERSION}.tar.bz2
+ENV PATH=/opt/php/bin:${PATH}

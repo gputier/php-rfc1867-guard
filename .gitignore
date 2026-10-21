@@ -1,0 +1,8 @@
+.work/
+.build/
+*.o
+*.lo
+*.la
+.libs/
+modules/
+autom4te.cache/

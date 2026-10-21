@@ -1,0 +1,5 @@
+# minor  release  sha256 (published on php.net)  url
+# The official php:5.4-cli and php:5.5-cli images are unusable (schema v1 manifest, missing layer),
+# so these two minors are compiled from the official release tarballs, see Dockerfile.php-src.
+5.4 5.4.45 4e0d28b1554c95cfaea6fa2b64aac85433f158ce72bb571bcd5574f98f4c6582 https://museum.php.net/php5/php-5.4.45.tar.bz2
+5.5 5.5.38 473c81ebb2e48ca468caee031762266651843d7227c18a824add9b07b9393e38 https://museum.php.net/php5/php-5.5.38.tar.bz2
