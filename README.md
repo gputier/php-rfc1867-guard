@@ -1,20 +1,20 @@
 # php-rfc1867-guard
 
-For PHP 5.4 to 8.1, which get no official fix, this extension is the stopgap. On PHP 8.2 to 8.5, it is a second layer while you wait for the official package, and it stays in place next to it afterwards.
+This extension closes one route of CVE-2026-109619, the session upload-progress handler. It does not fix either CVE. The only complete fix is a PHP build that carries the official patch: PHP 8.2.35, 8.3.36, 8.4.27, 8.5.12 or later, or a vendor backport (Sury, Remi, TuxCare, cPanel EA4, CloudLinux alt-php, distributions). Install that first. Use the guard as a partial stopgap where no patched build exists, and as a second layer next to the patched build.
 
 ## The vulnerability
 
 CVE-2026-109618 and CVE-2026-109619, called "php2shell", are two bugs with a CVSS v4 score of 9.2 each. They allow unauthenticated remote code execution, according to watchTowr. Details leaked before the fix, and exploit code is circulating.
 
-The vulnerable code is `php_session_rfc1867_callback` in `ext/session/session.c`, the handler for session upload progress. It runs on every `multipart/form-data` POST, before any application code.
+PHP's advisories describe two bugs. CVE-2026-109618 ([GHSA-w8hw-w9fx-j79w](https://github.com/php/php-src/security/advisories/GHSA-w8hw-w9fx-j79w)) is memory corruption when PHP runs out of memory while request memory is not fully initialized, reachable through the multipart parser itself during request startup. CVE-2026-109619 ([GHSA-6wmf-4rv5-p3rp](https://github.com/php/php-src/security/advisories/GHSA-6wmf-4rv5-p3rp)) is stale request state reused by the next request handled by the same worker. Its confirmed consumers are session upload progress (`php_session_rfc1867_callback` in `ext/session/session.c`, which runs on every `multipart/form-data` POST before any application code) and INI diagnostics raised before request initialization, for example from mod_php `php_value` in `.htaccess` or FPM `PHP_VALUE`.
 
 The usual stopgap is weak. `session.upload_progress.enabled` is `PHP_INI_PERDIR`, so any site can switch it back on from `.user.ini` or `.htaccess`. The check also happens inside the vulnerable function, not in front of it.
 
 ## Who needs this
 
-If you run PHP 5.4 to 8.1, there is no official fix from php.net for your branch. Some distributions have announced backports for some end-of-life branches, without dates. Check what your vendor ships before you rely on that.
+If you run PHP 8.2 to 8.5, update to 8.2.35, 8.3.36, 8.4.27, 8.5.12 or later. That closes both CVEs. The guard can stay next to it as a second layer.
 
-If you run PHP 8.2 to 8.5, the official fix lands on 21 October 2026 at 14:00 UTC. Install this extension now, and keep it after the official package is in place.
+If you run an end-of-life branch, check your vendor first: several ship patched builds of 7.4 to 8.1, some of older branches too. Read the package changelog for the CVE, the upstream version number does not change with a backport. Where no patched build exists, the guard closes the upload-progress route only. CVE-2026-109618 and the INI-diagnostic route of CVE-2026-109619 stay open, and the advisories list the configuration measures that reduce them. Hosted Power's [php_uploadprogress_guard](https://github.com/HOSTED-POWER/php_uploadprogress_guard) 3.x carries PHP's fixed parser and the request-state cleanup and covers more than this extension; check which branches it supports.
 
 ## How it works
 
@@ -114,7 +114,7 @@ grep rfc1867_guard /proc/<php-fpm master pid>/maps
 
 ## Limits
 
-The guard only helps as far as the bugs live in that handler, which is where researchers located them before the advisory. It does not cover a possible second bug inside the multipart parser itself. That bug is unconfirmed.
+The guard detaches the session upload-progress handler and nothing else. PHP's advisories confirmed routes that it does not touch: out-of-memory corruption in the multipart parser itself (CVE-2026-109618), and stale request state consumed by INI diagnostics before request initialization (CVE-2026-109619). On a PHP without the official patch, both stay open with the guard installed.
 
 It does not undo a compromise that happened before the guard was installed. It does not replace the official patch, so install both.
 
