@@ -16,6 +16,18 @@ If you run PHP 8.2 to 8.5, update to 8.2.35, 8.3.36, 8.4.27, 8.5.12 or later. Th
 
 If you run an end-of-life branch, check your vendor first: several ship patched builds of 7.4 to 8.1, some of older branches too. Read the package changelog for the CVE, the upstream version number does not change with a backport. Where no patched build exists, the guard closes the upload-progress route only. CVE-2026-109618 and the INI-diagnostic route of CVE-2026-109619 stay open, and the advisories list the configuration measures that reduce them. Hosted Power's [php_uploadprogress_guard](https://github.com/HOSTED-POWER/php_uploadprogress_guard) 3.x carries PHP's fixed parser and the request-state cleanup and covers more than this extension; check which branches it supports.
 
+## What we run in production
+
+On 22 October 2026, between 19:35 and 20:05 Paris time, we replaced this extension with php_uploadprogress_guard 3.1.0 from Hosted Power on nine hosts that had no patched PHP available: branches 5.6 to 7.4, under mod_php, PHP-FPM and CGI. We compiled the module ourselves from Hosted Power's source at commit 14d68597191be07151f041e3636fde63322fd2bb, with `phpize` in the official image of each branch. We never installed their binaries.
+
+Before the swap, we tested the module in containers on 5.6, 7.0, 7.1, 7.2, 7.3 and 7.4, with the built-in server, php-fpm and mod_php. The three memory-exhaustion strategies of CVE-2026-109618 (a huge field, huge headers, nested empty files) end in a 413 with the module, and in "Allowed memory size exhausted" without it. A 5 MB upload stays identical byte for byte. A form with 15,000 fields produces the same `$_POST`. Upload progress stays cut, even when `.user.ini`, `.htaccess` or `PHP_VALUE` tries to switch it back on.
+
+After the swap, the pages of each host's sites return the same HTTP code and the same content as before. The one exception is a webmail login page, which changes on every call because of its token. A multipart test upload passes unchanged on the canary host.
+
+On these hosts we removed the old `rfc1867_guard.ini` in the same reload, so the two modules are never loaded together. If rfc1867_guard loads first, Hosted Power's module no longer locks `session.upload_progress.enabled`. The progress stays off, but the setting is no longer locked.
+
+On a branch without a patch, Hosted Power's module covers more than this extension does: the fixed parser, the memory margin and the request-state cleanup. This extension closes only the upload-progress route.
+
 ## How it works
 
 The multipart decoder (`main/rfc1867.c`) calls its hook only through the global pointer `php_rfc1867_callback`. All seven call sites check that the pointer is not NULL. The session extension installs its handler there at startup.
